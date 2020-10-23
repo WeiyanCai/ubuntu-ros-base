@@ -23,11 +23,11 @@ EXPOSE $VNC_PORT $NO_VNC_PORT
 ARG SH_DIR=./xfce_exec
 
 ### Envrionment config
-ENV HOME=/headless \
+ENV HOME=/home \
     TERM=xterm \
     STARTUPDIR=/dockerstartup \
-    INST_SCRIPTS=/headless/install \
-    NO_VNC_HOME=/headless/noVNC \
+    INST_SCRIPTS=/home/install \
+    NO_VNC_HOME=/home/noVNC \
     DEBIAN_FRONTEND=noninteractive \
     VNC_COL_DEPTH=24 \
     VNC_RESOLUTION=1280x1024 \
@@ -39,6 +39,11 @@ WORKDIR $HOME
 ADD $SH_DIR/common/install/ $INST_SCRIPTS/
 ADD $SH_DIR/ubuntu/install/ $INST_SCRIPTS/
 RUN find $INST_SCRIPTS -name '*.sh' -exec chmod a+x {} +
+
+### Add sources.list which use tsinghua image
+ADD $SH_DIR/ubuntu/source/ /etc/apt/
+#CMD cat /etc/apt/sources.list
+RUN rm -rf /var/lib/apt/lists/* && apt-get update
 
 ### Install some common tools
 RUN $INST_SCRIPTS/tools.sh
@@ -75,10 +80,11 @@ RUN apt-get update && apt-get install -q -y \
 
 
 # setup sources.list
-RUN echo "deb http://packages.ros.org/ros/ubuntu bionic main" > /etc/apt/sources.list.d/ros1-latest.list
+#RUN echo "deb http://packages.ros.org/ros/ubuntu bionic main" > /etc/apt/sources.list.d/ros1-latest.list
+RUN sh -c '. /etc/lsb-release && echo "deb http://mirrors.tuna.tsinghua.edu.cn/ros/ubuntu/ `lsb_release -cs` main" > /etc/apt/sources.list.d/ros-latest.list'
 
 # setup keys
-RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654
+RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654 && apt-get update
 
 # install bootstrap tools
 RUN apt-get update && apt-get install --no-install-recommends -y \
@@ -93,7 +99,7 @@ ENV LC_ALL C.UTF-8
 
 ENV ROS_DISTRO melodic
 # bootstrap rosdep
-RUN rosdep init && \
+RUN echo "151.101.84.133  raw.githubusercontent.com" >> /etc/hosts && rosdep init && \
   rosdep update --rosdistro $ROS_DISTRO
 
 # install ros packages
@@ -115,8 +121,12 @@ RUN apt-get update && apt-get install -y \
   && rm -rf /var/lib/apt/lists/*
 
 
+RUN useradd -m user \
+  && yes password | passwd user
+
+
 # Change USER to 0 to get the root
-USER 1000
+# USER 0
 
 # setup environment, now in the user mode
 RUN echo "source /opt/ros/melodic/setup.bash" >> /headless/.bashrc
