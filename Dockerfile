@@ -1,4 +1,4 @@
-# This Dockerfile is used to build an vnc image based on Ubuntu
+# This Dockerfile is used to build a vnc image based on Ubuntu
 
 FROM ubuntu:18.04
 
@@ -107,6 +107,7 @@ RUN apt-get update && apt-get install -y \
   gdb \
   ssh \
   rsync \
+  bash-completion \
   && rm -rf /var/lib/apt/lists/*
 
 RUN ( \
