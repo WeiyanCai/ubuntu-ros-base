@@ -1,4 +1,4 @@
-# This Dockerfile is used to build a vnc image based on Ubuntu
+# This Dockerfile is used to build a vnc image based on Ubuntu 18.04
 
 FROM ubuntu:18.04
 
@@ -21,6 +21,11 @@ EXPOSE $VNC_PORT $NO_VNC_PORT $SSH_PORT
 ### Environment config
 ARG USER_NAME=default
 ENV HOME=/home/$USER_NAME
+
+### Add user and password
+RUN useradd -m $USER_NAME \
+    && yes password | passwd $USER_NAME
+
 WORKDIR $HOME
 
 ENV TERM=xterm \
@@ -39,9 +44,18 @@ ADD $SH_DIR/common/install/ $INST_SCRIPTS/
 ADD $SH_DIR/ubuntu/install/ $INST_SCRIPTS/
 RUN find $INST_SCRIPTS -name '*.sh' -exec chmod a+x {} +
 
-### Using tsinghua mirror in sources list
+### Setup timezone
+ENV TZ 'Asia/Shanghai'
+RUN echo $TZ > /etc/timezone \
+    && apt-get update && apt-get install -q -y tzdata \
+    && rm /etc/localtime \
+    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
+    && dpkg-reconfigure -f noninteractive tzdata \
+    && rm -rf /var/lib/apt/lists/*
+
+### Use tsinghua mirror in sources list
 RUN sed -i 's/archive.ubuntu.com/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list \
-  && sed -i 's/security.ubuntu.com/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list
+    && sed -i 's/security.ubuntu.com/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list
 
 ### Install some common tools
 RUN $INST_SCRIPTS/tools.sh
@@ -67,64 +81,59 @@ RUN $INST_SCRIPTS/libnss_wrapper.sh
 ADD $SH_DIR/common/scripts $STARTUPDIR
 RUN $INST_SCRIPTS/set_user_permission.sh $STARTUPDIR $HOME
 
-### Install ros(from https://github.com/osrf/docker_images/blob/b075c7dbe56055d862f331f19e1e74ba653e181a/ros/melodic/ubuntu/bionic/ros-core/Dockerfile)
 RUN apt-get update && apt-get install -q -y \
+    bash-completion \
+    build-essential \
+    cmake \
     dirmngr \
     gnupg2 \
+    lsb-release \
+    libgtest-dev \
+    openssh-client \
+    pkg-config \
+    sudo \
+    ssh \
+    vim \
     && rm -rf /var/lib/apt/lists/*
 
-### Setup sources.list
-#RUN echo "deb http://packages.ros.org/ros/ubuntu bionic main" > /etc/apt/sources.list.d/ros1-latest.list
-RUN sh -c '. /etc/lsb-release && echo "deb http://mirrors.tuna.tsinghua.edu.cn/ros/ubuntu/ `lsb_release -cs` main" > /etc/apt/sources.list.d/ros-latest.list'
+### Install ros (refer to https://github.com/osrf/docker_images/blob/b075c7dbe56055d862f331f19e1e74ba653e181a/ros/melodic/ubuntu/bionic/ros-core/Dockerfile)
+ENV ROS_DISTRO melodic
 
-### Setup keys
-RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654
+### Add sources list and app key
+RUN sh -c '. /etc/lsb-release && echo "deb http://mirrors.tuna.tsinghua.edu.cn/ros/ubuntu/ `lsb_release -cs` main" > /etc/apt/sources.list.d/ros-latest.list' \
+    && apt-key adv --keyserver 'hkp://keyserver.ubuntu.com:80' --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654
 
 ### Install bootstrap tools
-RUN apt-get update && apt-get install --no-install-recommends -y \
+RUN apt-get update && apt-get install -q -y \
+    python-catkin-tools \
     python-rosdep \
     python-rosinstall \
     python-vcstools \
     && rm -rf /var/lib/apt/lists/*
 
-### Install ros and catkin tools
-RUN apt-get update && apt-get install -y \
+### Install ros
+RUN apt-get update && apt-get install -q -y \
     ros-melodic-desktop-full \
-    python-catkin-tools \
     && rm -rf /var/lib/apt/lists/*
 
-ENV ROS_DISTRO melodic
-### Setup environment, now in the user mode
-RUN echo "source /opt/ros/melodic/setup.bash" >> $HOME/.bashrc
 ### Bootstrap rosdep
 RUN echo "151.101.84.133  raw.githubusercontent.com" >> /etc/hosts \
-  && rosdep init && rosdep update --rosdistro $ROS_DISTRO
+    && rosdep init && rosdep update --rosdistro $ROS_DISTRO
 
-### Install other tools
-RUN apt-get update && apt-get install -y \
-  vim \
-  git \
-  gdb \
-  ssh \
-  rsync \
-  bash-completion \
-  && rm -rf /var/lib/apt/lists/*
-
+### Configure sshd and ros environment
 RUN ( \
     echo 'LogLevel DEBUG2'; \
     echo 'PermitRootLogin yes'; \
     echo 'PasswordAuthentication yes'; \
     echo 'Subsystem sftp /usr/lib/openssh/sftp-server'; \
-  ) > /etc/ssh/sshd_config_clion_remote \
-  && mkdir /run/sshd \
-  && echo "/usr/sbin/sshd -f /etc/ssh/sshd_config_clion_remote" >> $HOME/.bashrc
-
-### Add user and setup password
-RUN useradd -m $USER_NAME \
-   && yes password | passwd $USER_NAME
+    ) > /etc/ssh/sshd_config_clion_remote \
+    && mkdir /run/sshd \
+    && echo "/usr/sbin/sshd -f /etc/ssh/sshd_config_clion_remote" >> $HOME/.bashrc \
+    && echo "source /opt/ros/melodic/setup.bash" >> $HOME/.bashrc
 
 ### Change USER to 0 to get the root
-# USER 0
+RUN adduser $USER_NAME sudo
+USER $USER_NAME
 
 ENTRYPOINT ["/home/default/startup/vnc_startup.sh"]
 CMD ["--wait"]

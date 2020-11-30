@@ -18,12 +18,12 @@ and also refers to
 ### Build
 1. `$ git clone git@github.com:WeiyanCai/ubuntu-ros-base.git`
 
-2. `$ cd ubuntu-ros-base && docker build -it weiyancai/ubuntu-ros-base:latest .`
+2. `$ cd ubuntu-ros-base && docker build -t weiyancai/ubuntu-ros-base:latest .`
 
 3. Install the [VNC Viewer](https://www.realvnc.com/en/connect/download/viewer/linux/).
 
 ### Run
-1. `$ docker run -it -p 5901:5901 -p 6901:6901 -p 127.0.0.1:2222:22 --name ubuntu-ros-base weiyancai/ubuntu-ros-base:latest /bin/bash`
+1. `$ docker run -it -p 5901:5901 -p 6901:6901 -p 127.0.0.1:2222:22 --name ubuntu-ros-base weiyancai/ubuntu-ros-base:latest bash`
 
 2. Open vnc viewer client, type the server address: `localhos:5901`, key in the password: `vncpassword`.
 
